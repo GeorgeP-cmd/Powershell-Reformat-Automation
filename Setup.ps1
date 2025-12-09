@@ -30,14 +30,11 @@ function Install-Software {
             switch ($extension) {
                 ".msi" {
                     $command = "msiexec.exe"
-                    $arguments = "/i `"$path`" /qn /norestart"
                 }
                 ".exe" {
-                    # NOTE: Silent install arguments for EXEs can vary widely.
-                    # Common ones are /s, /S, /quiet, /q.
-                    # The following is a general guess for a silent install.
+                    
                     $command = $path
-                    $arguments = "" 
+                    
                 }
                 default {
                     Write-Warning "Unsupported installer type: $extension for $SoftwareName. Skipping installation."
@@ -57,6 +54,7 @@ function Install-Software {
             }
         }
     }
+    
 
     if (-not $installerFound) {
         Write-Warning "**$SoftwareName installer not found** in any specified location."
@@ -120,6 +118,101 @@ $foxitPaths = @(
     "E:\New Computer Setup\FoxitPDFReader20242_enu_Setup_Prom.exe"
 )
 Install-Software -SoftwareName "FoxIt PDF Reader" -InstallerPaths $foxitPaths
+
+# -----------------------------------------------------------------------------
+# Company & Location Client Installer Selector
+# -----------------------------------------------------------------------------
+function Install-CompanyClient {
+    Write-Host "--- Company Client Setup ---"
+    
+    # Define where to look for the "Companies" folders
+    # We check D: and E: for a folder named "Companies" (Change this name if needed)
+    $possibleRoots = @("D:\New Computer Setup\VSA X Install", "E:\New Computer Setup\VSA X Install") 
+    $rootPath = $null
+
+    foreach ($path in $possibleRoots) {
+        if (Test-Path $path) {
+            $rootPath = $path
+            break
+        }
+    }
+
+    if (-not $rootPath) {
+        Write-Warning "Could not find a 'Companies' folder on D: or E:. Skipping."
+        return
+    }
+
+    # Get list of Companies (Directories in the root)
+    $companies = Get-ChildItem -Path $rootPath -Directory
+
+    if ($companies.Count -eq 0) {
+        Write-Warning "No company folders found in $rootPath."
+        return
+    }
+
+    # Display Numbered List of Companies
+    Write-Host "Found the following companies:"
+    for ($i = 0; $i -lt $companies.Count; $i++) {
+        Write-Host "[$($i + 1)] $($companies[$i].Name)"
+    }
+
+    # Prompt User for Company
+    $validSelection = $false
+    $selectedCompany = $null
+    while (-not $validSelection) {
+        $userinput = Read-Host "Enter the number for the desired Company"
+        if ($userinput -match '^\d+$' -and [int]$userinput -gt 0 -and [int]$userinput -le $companies.Count) {
+            $selectedCompany = $companies[[int]$userinput - 1]
+            $validSelection = $true
+        } else {
+            Write-Warning "Invalid selection. Please try again."
+        }
+    }
+
+    # Check for Locations (Sub-directories inside the selected company)
+    $locations = Get-ChildItem -Path $selectedCompany.FullName -Directory
+    $finalPath = $selectedCompany.FullName
+
+    if ($locations.Count -gt 0) {
+        Write-Host "`nMultiple locations found for $($selectedCompany.Name):"
+        for ($i = 0; $i -lt $locations.Count; $i++) {
+            Write-Host "[$($i + 1)] $($locations[$i].Name)"
+        }
+
+        $validLocSelection = $false
+        while (-not $validLocSelection) {
+            $locInput = Read-Host "Enter the number for the desired Location"
+            if ($locInput -match '^\d+$' -and [int]$locInput -gt 0 -and [int]$locInput -le $locations.Count) {
+                $finalPath = $locations[[int]$locInput - 1].FullName
+                $validLocSelection = $true
+            } else {
+                Write-Warning "Invalid location selection."
+            }
+        }
+    }
+
+    # Find and Open the Web Shortcut (.url or .lnk)
+    Write-Host "`nSearching for shortcuts in: $finalPath" -ForegroundColor Gray
+    
+    # Open the Grid View Window
+    $shortcut = Get-ChildItem -Path "$finalPath\*" -Include *.url, *.lnk -File | 
+                Select-Object Name, FullName | 
+                Out-GridView -Title "Select installer for $($selectedCompany.Name)" -OutputMode Single
+
+    # Check if the user actually picked something
+    if ($shortcut) {
+        Write-Host "Launching $($shortcut.Name)..." -ForegroundColor Cyan
+        
+        # Launch the file
+        Invoke-Item -Path $shortcut.FullName
+    }
+    else {
+        Write-Warning "Selection cancelled by user."
+    }
+}
+
+# Execute the function
+Install-CompanyClient
 
 # -----------------------------------------------------------------------------
 # Continue with Windows Updates as needed
