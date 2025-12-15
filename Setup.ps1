@@ -236,7 +236,8 @@ if (Get-Module -ListAvailable -Name PSWindowsUpdate) {
     Import-Module PSWindowsUpdate
     Write-Host "Running Windows Updates. This may take a while..."
     # Install all available updates and auto-reboot if necessary
-    Install-WindowsUpdate -AcceptAll -AutoReboot
+    Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -AutoReboot
     Write-Host "**Windows Update process complete.**"
 }
 Write-Host "-------------------------------------"
+
